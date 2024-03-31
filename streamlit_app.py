@@ -1,40 +1,59 @@
-import altair as alt
-import numpy as np
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import io
 
-"""
-# Welcome to Streamlit!
+# Function to extract unique teacher names from the dataframe
+def get_unique_teachers(dataframe):
+    return pd.unique(dataframe.values.ravel('K'))
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+# Function to create a PDF report for the selected teacher
+def create_teacher_pdf(teacher_name, dataframe, filename):
+    c = canvas.Canvas(filename, pagesize=letter)
+    width, height = letter
+    c.drawString(100, height - 40, f"Time Table for Teacher: {teacher_name}")
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+    # Assuming the dataframe is in the correct format
+    for index, row in dataframe.iterrows():
+        day = index[0]
+        classes = row[row == teacher_name].index
+        text = f"{day}: " + ", ".join(classes)
+        c.drawString(100, height - 70 - (10 * index), text)
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+    c.save()
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
+# Start of the Streamlit app
+st.title('Teacher Schedule PDF Generator')
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+# File uploader allows user to add their own excel
+uploaded_file = st.file_uploader("Choose an Excel file", type=['xlsx'])
+if uploaded_file:
+    # To read file as bytes:
+    bytes_data = uploaded_file.getvalue()
+    df = pd.read_excel(bytes_data, sheet_name='BOYS&GIRLS')
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
+    # Extract unique teacher names
+    unique_teachers = get_unique_teachers(df)
 
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+    # Dropdown to select the teacher
+    teacher_name = st.selectbox('Select the Teacher:', unique_teachers)
+
+    # Input for entering the teacher's name (optional)
+    input_teacher_name = st.text_input("Enter the teacher's name (Optional):")
+    if input_teacher_name:
+        teacher_name = input_teacher_name
+
+    # When the button is clicked, generate the PDF
+    if st.button('Generate PDF'):
+        filename = f'/mnt/data/{teacher_name}_schedule.pdf'
+        create_teacher_pdf(teacher_name, df, filename)
+
+        # Download link for the PDF
+        with open(filename, "rb") as file:
+            btn = st.download_button(
+                label="Download PDF",
+                data=file,
+                file_name=f'{teacher_name}_schedule.pdf',
+                mime="application/octet-stream"
+            )
