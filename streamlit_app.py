@@ -12,12 +12,15 @@ from reportlab.platypus import Paragraph
 
 # Function to extract unique teacher names from the dataframe
 def get_unique_teachers(dataframe):
+    # lower case all the values in the dataframe
     return pd.unique(dataframe.values.ravel('K'))
 
 # Function to create a PDF report for the selected teacher
 
 
 def create_teacher_pdf(teacher_name, schedule_df, filename):
+    teacher_name = teacher_name.upper()
+    teacher_name = teacher_name.split("-")[1]
     doc = SimpleDocTemplate(filename, pagesize=A4)
     story = []
     styles = getSampleStyleSheet()
@@ -34,7 +37,7 @@ def create_teacher_pdf(teacher_name, schedule_df, filename):
     story.append(Paragraph(f"Teacher's Name: {teacher_name}", teacher_name_style))
     
     # Table
-    data = [[''] + [f"Period {i}" for i in range(1, 9)]]
+    data = [[''] +['Day']+ [f"Period {i}" for i in range(1, 9)]]
     data += [([day] + row.tolist()) for day, row in schedule_df.iterrows()]
 
     table = Table(data)
@@ -78,6 +81,9 @@ if uploaded_file:
     # remove the first row
     df = df.iloc[1:]
     
+    # lower case all the values in the dataframe
+    df = df.apply(lambda x: x.str.lower())
+    
     #first 8 columns are monday and next 8 columns are tuesday and so on only friday have 6 columns
     # add the column names as days
     
@@ -118,43 +124,41 @@ if uploaded_file:
     teacher_schedule = {day: [] for day in days_of_week}
 
         # Assuming df.columns are structured as 'Day-Period' after 'Class'
+    # Assuming df.columns are structured as 'Day-Period' after 'Class'
     teacher_name = teacher_name.lower()  # Ensure we're using a lowercase version for comparison
     periods_per_day = {
         "Monday": 8,
         "Tuesday": 8,
         "Wednesday": 8,
         "Thursday": 8,
-        "Friday": 5,
+        "Friday": 5,  # Update based on your schedule
         "Saturday": 8,
     }
 
     for day, num_periods in periods_per_day.items():
         for period in range(1, num_periods + 1):
             period_column = f"{day}-{period}"
-            # Check if the period column exists to avoid KeyError
             if period_column in df.columns:
+                # Fill the period with the class name or "Free" if the teacher isn't teaching that period
                 class_name = df.loc[df[period_column].str.lower().str.contains(teacher_name, na=False), "Class"]
-                if not class_name.empty:
-                    # Append class name and period to the schedule
-                    teacher_schedule[day].append(f"{class_name.values[0]}")
+                teacher_schedule[day].append(class_name.values[0] if not class_name.empty else "Free")
+
 
     # Display the schedule in table 
 
     
-    # Assuming teacher_schedule is already defined
     days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     period_columns = [f'Period {i+1}' for i in range(8)]
     schedule_rows = []
 
     for day in days_of_week:
-        # Get the classes for each day, pad with empty strings if less than 8
-        day_classes = teacher_schedule.get(day, []) + [''] * (8 - len(teacher_schedule.get(day, [])))
-        # Create a row for the current day
-        day_row = pd.DataFrame([{**{'Day': day}, **dict(zip(period_columns, day_classes))}])
-        schedule_rows.append(day_row)
+        # Get the classes for each day, fill with "Free" if the teacher is free that period
+        day_classes = teacher_schedule.get(day, ["Free"] * 8)  # Default to "Free" for all periods
+        schedule_rows.append([day] + day_classes)
 
-    # Concatenate all the day rows to form the complete schedule DataFrame
-    schedule_df = pd.concat(schedule_rows).set_index('Day')
+    # Convert the list into a DataFrame
+    schedule_df = pd.DataFrame(schedule_rows, columns=['Day'] + period_columns)
+
 
     # Display the DataFrame
     st.write("Weekly Schedule for:", teacher_name)
