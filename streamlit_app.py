@@ -17,6 +17,48 @@ def get_unique_teachers(dataframe):
 
 # Function to create a PDF report for the selected teacher
 
+def get_teacher_schedule(teacher_name):
+    # Building the teacher's weekly schedule
+    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    teacher_schedule = {day: [] for day in days_of_week}
+
+    # Assuming df.columns are structured as 'Day-Period' after 'Class'
+    # Assuming df.columns are structured as 'Day-Period' after 'Class'
+    teacher_name = teacher_name.lower()  # Ensure we're using a lowercase version for comparison
+    periods_per_day = {
+        "Monday": 8,
+        "Tuesday": 8,
+        "Wednesday": 8,
+        "Thursday": 8,
+        "Friday": 5,  # Update based on your schedule
+        "Saturday": 8,
+    }
+
+    for day, num_periods in periods_per_day.items():
+        for period in range(1, num_periods + 1):
+            period_column = f"{day}-{period}"
+            if period_column in df.columns:
+                # Fill the period with the class name or "Free" if the teacher isn't teaching that period
+                class_name = df.loc[df[period_column].str.lower().str.contains(teacher_name, na=False), "Class"]
+                teacher_schedule[day].append(class_name.values[0] if not class_name.empty else "  ")
+
+    # Display the schedule in table format
+    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    period_columns = [f'Period {i+1}' for i in range(8)]
+    schedule_rows = []
+
+    for day in days_of_week:
+        # Get the classes for each day, fill with "Free" if the teacher is free that period
+        day_classes = teacher_schedule.get(day, ["  "] * 8)  # Default to "Free" for all periods
+        schedule_rows.append([day] + day_classes)
+
+    # Convert the list into a DataFrame
+    schedule_df = pd.DataFrame(schedule_rows, columns=['Day'] + period_columns)
+
+    return schedule_df, teacher_schedule
+
+
+
 
 def create_teacher_pdf(teacher_name, schedule_df, filename):
     teacher_name = teacher_name.upper()
@@ -109,65 +151,50 @@ if uploaded_file:
     
     # display the teacher's schedule which class they are teaching and on which day
     st.write(f"Schedule for {teacher_name}")
-    # we have classes on the columns and days on the rows
-#     CLASS	MONDAY							
-# 2 (B)	U-khalida	SP-M	M-IRUM	E-TANIA	E-TANIA	GK-MAIRA	D-AYESHA	GK-MAIRA    
-
-    # Display the schedule for the selected teacher like for U-khalida on Monday she will teach 2 (B) class
-    # search which row has the teacher name and then display the class by check the entry in first column 
-    # and check the coloumn name for the day
-    
-    # give the weekly schedule of the teacher
-    
-    # Building the teacher's weekly schedule
-    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    teacher_schedule = {day: [] for day in days_of_week}
-
-        # Assuming df.columns are structured as 'Day-Period' after 'Class'
-    # Assuming df.columns are structured as 'Day-Period' after 'Class'
-    teacher_name = teacher_name.lower()  # Ensure we're using a lowercase version for comparison
-    periods_per_day = {
-        "Monday": 8,
-        "Tuesday": 8,
-        "Wednesday": 8,
-        "Thursday": 8,
-        "Friday": 5,  # Update based on your schedule
-        "Saturday": 8,
-    }
-
-    for day, num_periods in periods_per_day.items():
-        for period in range(1, num_periods + 1):
-            period_column = f"{day}-{period}"
-            if period_column in df.columns:
-                # Fill the period with the class name or "Free" if the teacher isn't teaching that period
-                class_name = df.loc[df[period_column].str.lower().str.contains(teacher_name, na=False), "Class"]
-                teacher_schedule[day].append(class_name.values[0] if not class_name.empty else "Free")
-
-
-    # Display the schedule in table 
 
     
-    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    period_columns = [f'Period {i+1}' for i in range(8)]
-    schedule_rows = []
-
-    for day in days_of_week:
-        # Get the classes for each day, fill with "Free" if the teacher is free that period
-        day_classes = teacher_schedule.get(day, ["Free"] * 8)  # Default to "Free" for all periods
-        schedule_rows.append([day] + day_classes)
-
-    # Convert the list into a DataFrame
-    schedule_df = pd.DataFrame(schedule_rows, columns=['Day'] + period_columns)
-
-
-    # Display the DataFrame
-    st.write("Weekly Schedule for:", teacher_name)
+    schedule_df, _ = get_teacher_schedule(teacher_name)
     st.dataframe(schedule_df)
+    
+    # new_pd = pd.DataFrame()
+    # new_pd['Teacher'] = [teacher_name]
+    # new_pd['Monday'] = [teacher_schedule['Monday']]
+    # new_pd['Tuesday'] = [teacher_schedule['Tuesday']]
+    # new_pd['Wednesday'] = [teacher_schedule['Wednesday']]
+    # new_pd['Thursday'] = [teacher_schedule['Thursday']]
+    # new_pd['Friday'] = [teacher_schedule['Friday']]
+    # new_pd['Saturday'] = [teacher_schedule['Saturday']]
+    
+    # do the above each teacher and then append the dataframes
+    
+    df_list = []
+        
+    for teacher in unique_teachers:
+        _, teacher_schedule = get_teacher_schedule(teacher)
+        # Create a DataFrame for each teacher and append to the list
+        teacher_df = pd.DataFrame({
+            'Teacher': [teacher],
+            'Monday': [teacher_schedule['Monday']],
+            'Tuesday': [teacher_schedule['Tuesday']],
+            'Wednesday': [teacher_schedule['Wednesday']],
+            'Thursday': [teacher_schedule['Thursday']],
+            'Friday': [teacher_schedule['Friday']],
+            'Saturday': [teacher_schedule['Saturday']]
+        })
+        df_list.append(teacher_df)
+        
+    # Concatenate all DataFrames in the list
+    new_pd = pd.concat(df_list, ignore_index=True)
+    
+    # Display the schedule in the form of a dataframe
+    st.dataframe(new_pd)
+    
+    # download the schedule as a excel file
 
     
 
 # Generate PDF button
-if st.button('Generate PDF') and teacher_name:
+if st.button('Generate PDF for techer') and teacher_name:
     filename = f'{teacher_name.replace(" ", "_")}_schedule.pdf'
     create_teacher_pdf(teacher_name, schedule_df, filename)
 
@@ -179,3 +206,6 @@ if st.button('Generate PDF') and teacher_name:
             file_name=f'{teacher_name}_schedule.pdf',
             mime='application/octet-stream'
         )
+
+        
+        
