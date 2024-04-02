@@ -15,6 +15,42 @@ def get_unique_teachers(dataframe):
     # lower case all the values in the dataframe
     return pd.unique(dataframe.values.ravel('K'))
 
+def get_base_teacher_name(teacher_with_subject):
+    # This function will return the base teacher name by removing any subject prefixes
+    parts = teacher_with_subject.split('-')
+    if len(parts) > 1:
+        return parts[1]  # If there is a prefix, return the name without the prefix
+    return parts[0]  # If there's no prefix, return the name as is
+def get_aggregated_schedule(df):
+    # This function will create an aggregated schedule
+    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
+    all_teachers_schedule = {}
+
+    for teacher in unique_teachers:
+        base_teacher_name = get_base_teacher_name(teacher)
+        if base_teacher_name not in all_teachers_schedule:
+            all_teachers_schedule[base_teacher_name] = {}
+
+        # Get the schedule for the teacher
+        schedule_df, teacher_schedule = get_teacher_schedule(teacher)
+
+        for day, periods in teacher_schedule.items():
+            if day not in all_teachers_schedule[base_teacher_name]:
+                all_teachers_schedule[base_teacher_name][day] = periods
+            else:
+                # Combine the periods with the existing ones
+                combined_periods = []
+                for existing, new in zip(all_teachers_schedule[base_teacher_name][day], periods):
+                    if existing.strip() and new.strip():
+                        combined_periods.append(f"{existing}, {new}")
+                    else:
+                        combined_periods.append(existing or new)
+                all_teachers_schedule[base_teacher_name][day] = combined_periods
+
+    return all_teachers_schedule
+
+
+
 # Function to create a PDF report for the selected teacher
 
 def get_teacher_schedule(teacher_name):
@@ -166,28 +202,40 @@ if uploaded_file:
     # new_pd['Saturday'] = [teacher_schedule['Saturday']]
     
     # do the above each teacher and then append the dataframes
+    aggregated_schedules = get_aggregated_schedule(df)
+
+    # Convert the aggregated schedules into a DataFrame for display and Excel export
+    schedule_list = []
+    for teacher, schedule in aggregated_schedules.items():
+        row = {'Teacher': teacher}
+        for day, periods in schedule.items():
+            row[day] = ', '.join(periods)
+        schedule_list.append(row)
+
+    aggregated_schedule_df = pd.DataFrame(schedule_list)
+    st.dataframe(aggregated_schedule_df)
     
-    df_list = []
+    # df_list = []
         
-    for teacher in unique_teachers:
-        _, teacher_schedule = get_teacher_schedule(teacher)
-        # Create a DataFrame for each teacher and append to the list
-        teacher_df = pd.DataFrame({
-            'Teacher': [teacher],
-            'Monday': [teacher_schedule['Monday']],
-            'Tuesday': [teacher_schedule['Tuesday']],
-            'Wednesday': [teacher_schedule['Wednesday']],
-            'Thursday': [teacher_schedule['Thursday']],
-            'Friday': [teacher_schedule['Friday']],
-            'Saturday': [teacher_schedule['Saturday']]
-        })
-        df_list.append(teacher_df)
+    # for teacher in unique_teachers:
+    #     _, teacher_schedule = get_teacher_schedule(teacher)
+    #     # Create a DataFrame for each teacher and append to the list
+    #     teacher_df = pd.DataFrame({
+    #         'Teacher': [teacher],
+    #         'Monday': [teacher_schedule['Monday']],
+    #         'Tuesday': [teacher_schedule['Tuesday']],
+    #         'Wednesday': [teacher_schedule['Wednesday']],
+    #         'Thursday': [teacher_schedule['Thursday']],
+    #         'Friday': [teacher_schedule['Friday']],
+    #         'Saturday': [teacher_schedule['Saturday']]
+    #     })
+    #     df_list.append(teacher_df)
         
-    # Concatenate all DataFrames in the list
-    new_pd = pd.concat(df_list, ignore_index=True)
+    # # Concatenate all DataFrames in the list
+    # new_pd = pd.concat(df_list, ignore_index=True)
     
-    # Display the schedule in the form of a dataframe
-    st.dataframe(new_pd)
+    # # Display the schedule in the form of a dataframe
+    # st.dataframe(new_pd)
     
     # download the schedule as a excel file
 
