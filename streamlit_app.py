@@ -21,37 +21,36 @@ def get_base_teacher_name(teacher_with_subject):
     if len(parts) > 1:
         return parts[1]  # If there is a prefix, return the name without the prefix
     return parts[0]  # If there's no prefix, return the name as is
-def get_aggregated_schedule(df):
-    # This function will create an aggregated schedule
-    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
-    all_teachers_schedule = {}
-
-    for teacher in unique_teachers:
-        base_teacher_name = get_base_teacher_name(teacher)
-        if base_teacher_name not in all_teachers_schedule:
-            all_teachers_schedule[base_teacher_name] = {}
-
-        # Get the schedule for the teacher
-        schedule_df, teacher_schedule = get_teacher_schedule(teacher)
-
-        for day, periods in teacher_schedule.items():
-            if day not in all_teachers_schedule[base_teacher_name]:
-                all_teachers_schedule[base_teacher_name][day] = periods
-            else:
-                # Combine the periods with the existing ones
-                combined_periods = []
-                for existing, new in zip(all_teachers_schedule[base_teacher_name][day], periods):
-                    if existing.strip() and new.strip():
-                        combined_periods.append(f"{existing}, {new}")
-                    else:
-                        combined_periods.append(existing or new)
-                all_teachers_schedule[base_teacher_name][day] = combined_periods
-
-    return all_teachers_schedule
 
 
+#def get_aggregated_schedule(df):
+#    # This function will create an aggregated schedule
+#    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
+#    all_teachers_schedule = {}
+#
+#    for teacher in unique_teachers:
+#        base_teacher_name = get_base_teacher_name(teacher)
+#        if base_teacher_name not in all_teachers_schedule:
+#            all_teachers_schedule[base_teacher_name] = {}
+#
+#        # Get the schedule for the teacher
+#        schedule_df, teacher_schedule = get_teacher_schedule(teacher)
+#
+#        for day, periods in teacher_schedule.items():
+#            if day not in all_teachers_schedule[base_teacher_name]:
+#                all_teachers_schedule[base_teacher_name][day] = periods
+#            else:
+#                # Combine the periods with the existing ones
+#                combined_periods = []
+#                for existing, new in zip(all_teachers_schedule[base_teacher_name][day], periods):
+#                    if existing.strip() and new.strip():
+#                        combined_periods.append(f"{existing}, {new}")
+#                    else:
+#                        combined_periods.append(existing or new)
+#                all_teachers_schedule[base_teacher_name][day] = combined_periods
+#
+#    return all_teachers_schedule 
 
-# Function to create a PDF report for the selected teacher
 
 def get_teacher_schedule(teacher_name):
     # Building the teacher's weekly schedule
@@ -140,8 +139,104 @@ def create_teacher_pdf(teacher_name, schedule_df, filename):
     
     # Build PDF
     doc.build(story)
-
     return filename
+
+#Get names of classes
+def get_class_name(df):
+    class_name = df.iloc[:, 0].tolist()
+    return class_name
+
+#Make schedule of classes
+def class_schedule(df, class_with_section):
+    days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    period_columns = [f'Period {i+1}' for i in range(5)] + ['Break'] + [f'Period {i+1}' for i in range(5, 8)]
+
+
+    class_name = get_class_name(df)
+    if class_with_section in class_name:
+        class_index = class_name.index(class_with_section)
+    
+    required_row = df.iloc[class_index, 1:].tolist()
+    dataframe_rows = [
+        [days_of_week[0]] + required_row[0:5] + [" "] + required_row[5:8],
+        [days_of_week[1]] + required_row[8:13] + [" "] + required_row[13:16],
+        [days_of_week[2]] + required_row[16:21] + [" "] + required_row[21:24],
+        [days_of_week[3]] + required_row[24:29] + [" "] + required_row[29:32],
+        [days_of_week[4]] + required_row[32:37] + [" "],
+        [days_of_week[5]] + required_row[37:42] + [" "] + required_row[42:45],
+    ]
+
+    class_schedule_dataframe = pd.DataFrame(dataframe_rows, columns = ["Days"] + period_columns)
+    return class_schedule_dataframe
+
+#Create class schedule pdf from developed dataframe
+def create_class_pdf(filename, class_name, class_schedule):
+    class_section = class_name.split("(")[1].split(")")[0]
+    grade_name = class_name.split("(")[0]
+    doc = SimpleDocTemplate(filename, pagesize=(650,840), rightMargin=30, leftMargin=30)
+
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # School Name
+    school_name = styles['Title']
+    school_name.alignment = 1  # Center alignment
+    story.append(Paragraph("DIVISIONAL PUBLIC SCHOOL & COLLEGE SAHIWAL", school_name))
+    
+    grade_style = styles["Normal"]
+    grade_style.alignment = 1
+
+    section_style = styles["Normal"]
+    section_style.alignment = 1
+
+    row_data = [
+        [
+            Paragraph(f"Class: {grade_name}", grade_style),
+            Paragraph(f"Section: {class_section}", section_style),
+            Paragraph("W.E.F: ___________", styles['Normal']),
+        ]
+    ]
+
+    info_table = Table(row_data, colWidths=[180, 180, 180])  # adjust as needed
+    info_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+    ]))
+
+    story.append(Spacer(1, 12))
+    story.append(info_table)
+
+
+    
+    # Table
+    data = [[''] +['Day']+ [f"Period {i}" for i in range(1, 6)] + ['Break'] + [f"Period {i}" for i in range(6, 9)]]
+    data += [([day] + row.tolist()) for day, row in class_schedule.iterrows()]
+
+    table = Table(data)
+    table_style = TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10)
+    ])
+    table.setStyle(table_style)
+
+    story.append(Spacer(1, 12))
+    story.append(table)
+
+    # Principal Signature Line
+    principal_style = styles['Normal']
+    principal_style.alignment = 2  # Right alignment
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Principal:", principal_style))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("_________________________", principal_style))
+    
+    # Build PDF
+    doc.build(story)
+    return filename
+
 
 
 # Start of the Streamlit app
@@ -175,15 +270,11 @@ if uploaded_file:
         "Saturday-1", "Saturday-2", "Saturday-3", "Saturday-4", "Saturday-5", "Saturday-6", "Saturday-7", "Saturday-8",
     ]
 
-    
-    
-    
-    st.write(df)
+    #st.write(df)
     
     unique_teachers = get_unique_teachers(df.iloc[1:, 1:])
     # Dropdown to select the teacher and search bar to enter the teacher's name
     teacher_name = st.selectbox('Select teacher', unique_teachers)
-    
     
     # display the teacher's schedule which class they are teaching and on which day
     st.write(f"Schedule for {teacher_name}")
@@ -191,69 +282,45 @@ if uploaded_file:
     
     schedule_df, _ = get_teacher_schedule(teacher_name)
     st.dataframe(schedule_df)
-    
-    # new_pd = pd.DataFrame()
-    # new_pd['Teacher'] = [teacher_name]
-    # new_pd['Monday'] = [teacher_schedule['Monday']]
-    # new_pd['Tuesday'] = [teacher_schedule['Tuesday']]
-    # new_pd['Wednesday'] = [teacher_schedule['Wednesday']]
-    # new_pd['Thursday'] = [teacher_schedule['Thursday']]
-    # new_pd['Friday'] = [teacher_schedule['Friday']]
-    # new_pd['Saturday'] = [teacher_schedule['Saturday']]
-    
-    # do the above each teacher and then append the dataframes
-    aggregated_schedules = get_aggregated_schedule(df)
 
-    # Convert the aggregated schedules into a DataFrame for display and Excel export
-    schedule_list = []
-    for teacher, schedule in aggregated_schedules.items():
-        row = {'Teacher': teacher}
-        for day, periods in schedule.items():
-            row[day] = ', '.join(periods)
-        schedule_list.append(row)
+    if st.button('Generate PDF for techer') and teacher_name:
+        filename = f'{teacher_name.replace(" ", "_")}_schedule.pdf'
+        create_teacher_pdf(teacher_name, schedule_df, filename)
 
-    aggregated_schedule_df = pd.DataFrame(schedule_list)
-    st.dataframe(aggregated_schedule_df)
-    
-    # df_list = []
+        # Provide the download link for the PDF
+        with open(filename, "rb") as file:
+            st.download_button(
+                label="Download PDF",
+                data=file,
+                file_name=f'{teacher_name}_schedule.pdf',
+                mime='application/octet-stream'
+            )
+
+    #get class name from function
+    class_name = get_class_name(df)
+    #Select class name from dropdown
+    class_with_section = st.selectbox("Select Class", class_name)
+
+    st.write(f"Schedule for {class_with_section}")
+    class_schedule_df = class_schedule(df, class_with_section)
+
+    #write schedule to app
+    st.dataframe(class_schedule_df)
+
+    # Generate PDF button
+    if st.button("Generate PDF for class") and class_with_section:
+        class_filename = f"{class_with_section}_schedule.pdf"
+
+        create_class_pdf(class_filename, class_with_section, class_schedule_df)
+
+        with open(class_filename, "rb") as file:
+            file_bytes = file.read()
         
-    # for teacher in unique_teachers:
-    #     _, teacher_schedule = get_teacher_schedule(teacher)
-    #     # Create a DataFrame for each teacher and append to the list
-    #     teacher_df = pd.DataFrame({
-    #         'Teacher': [teacher],
-    #         'Monday': [teacher_schedule['Monday']],
-    #         'Tuesday': [teacher_schedule['Tuesday']],
-    #         'Wednesday': [teacher_schedule['Wednesday']],
-    #         'Thursday': [teacher_schedule['Thursday']],
-    #         'Friday': [teacher_schedule['Friday']],
-    #         'Saturday': [teacher_schedule['Saturday']]
-    #     })
-    #     df_list.append(teacher_df)
-        
-    # # Concatenate all DataFrames in the list
-    # new_pd = pd.concat(df_list, ignore_index=True)
-    
-    # # Display the schedule in the form of a dataframe
-    # st.dataframe(new_pd)
-    
-    # download the schedule as a excel file
-
-    
-
-# Generate PDF button
-if st.button('Generate PDF for techer') and teacher_name:
-    filename = f'{teacher_name.replace(" ", "_")}_schedule.pdf'
-    create_teacher_pdf(teacher_name, schedule_df, filename)
-
-    # Provide the download link for the PDF
-    with open(filename, "rb") as file:
         st.download_button(
             label="Download PDF",
-            data=file,
-            file_name=f'{teacher_name}_schedule.pdf',
+            data=file_bytes,
+            file_name=f'{class_with_section}_schedule.pdf',
             mime='application/octet-stream'
         )
 
-        
-        
+       
