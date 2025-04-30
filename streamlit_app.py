@@ -12,44 +12,44 @@ from reportlab.platypus import Paragraph
 
 # Function to extract unique teacher names from the dataframe
 def get_unique_teachers(dataframe):
-    # lower case all the values in the dataframe
-    return pd.unique(dataframe.values.ravel('K'))
+    #get list of teachers
+    newdf = dataframe.fillna("Null")  #Fill NaN values with NULL!
+    return pd.unique(newdf.values.ravel('K'))
 
 def get_base_teacher_name(teacher_with_subject):
-    # This function will return the base teacher name by removing any subject prefixes
-    parts = teacher_with_subject.split('-')
-    if len(parts) > 1:
-        return parts[1]  # If there is a prefix, return the name without the prefix
-    return parts[0]  # If there's no prefix, return the name as is
+   # This function will return the base teacher name by removing any subject prefixes
+   parts = teacher_with_subject.split('-')
+   if len(parts) > 1:
+       return parts[1]  # If there is a prefix, return the name without the prefix
+   return parts[0]  # If there's no prefix, return the name as is
 
+def get_aggregated_schedule(df):
+    # This function will create an aggregated schedule
+    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
+    all_teachers_schedule = {}
 
-#def get_aggregated_schedule(df):
-#    # This function will create an aggregated schedule
-#    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
-#    all_teachers_schedule = {}
-#
-#    for teacher in unique_teachers:
-#        base_teacher_name = get_base_teacher_name(teacher)
-#        if base_teacher_name not in all_teachers_schedule:
-#            all_teachers_schedule[base_teacher_name] = {}
-#
-#        # Get the schedule for the teacher
-#        schedule_df, teacher_schedule = get_teacher_schedule(teacher)
-#
-#        for day, periods in teacher_schedule.items():
-#            if day not in all_teachers_schedule[base_teacher_name]:
-#                all_teachers_schedule[base_teacher_name][day] = periods
-#            else:
-#                # Combine the periods with the existing ones
-#                combined_periods = []
-#                for existing, new in zip(all_teachers_schedule[base_teacher_name][day], periods):
-#                    if existing.strip() and new.strip():
-#                        combined_periods.append(f"{existing}, {new}")
-#                    else:
-#                        combined_periods.append(existing or new)
-#                all_teachers_schedule[base_teacher_name][day] = combined_periods
-#
-#    return all_teachers_schedule 
+    for teacher in unique_teachers:
+        base_teacher_name = get_base_teacher_name(teacher)
+        if base_teacher_name not in all_teachers_schedule:
+            all_teachers_schedule[base_teacher_name] = {}
+
+        # Get the schedule for the teacher
+        schedule_df, teacher_schedule = get_teacher_schedule(teacher)
+
+        for day, periods in teacher_schedule.items():
+            if day not in all_teachers_schedule[base_teacher_name]:
+                all_teachers_schedule[base_teacher_name][day] = periods
+            else:
+                # Combine the periods with the existing ones
+                combined_periods = []
+                for existing, new in zip(all_teachers_schedule[base_teacher_name][day], periods):
+                    if existing.strip() and new.strip():
+                        combined_periods.append(f"{existing}, {new}")
+                    else:
+                        combined_periods.append(existing or new)
+                all_teachers_schedule[base_teacher_name][day] = combined_periods
+
+    return all_teachers_schedule 
 
 
 def get_teacher_schedule(teacher_name):
@@ -59,13 +59,13 @@ def get_teacher_schedule(teacher_name):
 
     # Assuming df.columns are structured as 'Day-Period' after 'Class'
     # Assuming df.columns are structured as 'Day-Period' after 'Class'
-    teacher_name = teacher_name.lower()  # Ensure we're using a lowercase version for comparison
+    teacher_name = teacher_name.upper()  # Ensure we're using a uppercase version for comparison
     periods_per_day = {
         "Monday": 8,
         "Tuesday": 8,
         "Wednesday": 8,
         "Thursday": 8,
-        "Friday": 5,  # Update based on your schedule
+        "Friday": 8,  # Update based on your schedule
         "Saturday": 8,
     }
 
@@ -74,7 +74,7 @@ def get_teacher_schedule(teacher_name):
             period_column = f"{day}-{period}"
             if period_column in df.columns:
                 # Fill the period with the class name or "Free" if the teacher isn't teaching that period
-                class_name = df.loc[df[period_column].str.lower().str.contains(teacher_name, na=False), "Class"]
+                class_name = df.loc[df[period_column].str.upper().str.contains(teacher_name, na=False), "Class"]
                 teacher_schedule[day].append(class_name.values[0] if not class_name.empty else "  ")
 
     # Display the schedule in table format
@@ -90,9 +90,57 @@ def get_teacher_schedule(teacher_name):
     # Convert the list into a DataFrame
     schedule_df = pd.DataFrame(schedule_rows, columns=['Day'] + period_columns)
 
-    return schedule_df, teacher_schedule
+    return schedule_df
+    #teacher_schedule
 
+def merged_schedule(selected_teacher): 
+    list_of_unique_teachers = get_unique_teachers(df.iloc[:, 1:])
+    
+    base_teacher_name = get_base_teacher_name(selected_teacher)
+    merged_df = []
 
+    for teacher in list_of_unique_teachers:    
+        if base_teacher_name in teacher:
+            merged_df.append(get_teacher_schedule(teacher))
+
+    final_df = merged_df[0]
+
+    for i in range(1, len(merged_df)):
+        final_df = final_df.combine_first(merged_df[i])
+
+    return final_df
+
+#Write function to convert nested lists into single one
+def flatten_list(nested_list):
+    return [item for sublist in nested_list for item in sublist]
+
+def combined_schedule():
+    list_of_unique_teachers = get_unique_teachers(df.iloc[:, 1:])
+
+   
+    df_columns = [
+        "Teachers", "Monday-1", "Monday-2", "Monday-3", "Monday-4", "Monday-5", "Monday-6", "Monday-7", "Monday-8",
+        "Tuesday-1", "Tuesday-2", "Tuesday-3", "Tuesday-4", "Tuesday-5", "Tuesday-6", "Tuesday-7", "Tuesday-8",
+        "Wednesday-1", "Wednesday-2", "Wednesday-3", "Wednesday-4", "Wednesday-5", "Wednesday-6", "Wednesday-7", "Wednesday-8",
+        "Thursday-1", "Thursday-2", "Thursday-3", "Thursday-4", "Thursday-5", "Thursday-6", "Thursday-7", "Thursday-8",
+        "Friday-1", "Friday-2", "Friday-3", "Friday-4", "Friday-5", "Friday-6", "Friday-7", "Friday-8", 
+        "Saturday-1", "Saturday-2", "Saturday-3", "Saturday-4", "Saturday-5", "Saturday-6", "Saturday-7", "Saturday-8",
+    ]
+
+    df_rows = []
+
+    for teacher in list_of_unique_teachers:
+        given_schedule = merged_schedule(teacher)  # DataFrame for one teacher
+        final_schedule = given_schedule.iloc[:, 1:]
+        new_schedule = final_schedule.values.tolist()  # Nested list of rows
+        rows_schedule = flatten_list(new_schedule)  # Flattened list of schedule entries
+        df_rows.append([teacher] + rows_schedule)
+        
+    
+    final_df = pd.DataFrame(df_rows, columns = df_columns)
+    return final_df
+
+        
 
 
 def create_teacher_pdf(teacher_name, schedule_df, filename):
@@ -254,8 +302,8 @@ if uploaded_file:
     # remove the first row
     df = df.iloc[1:]
     
-    # lower case all the values in the dataframe
-    df = df.apply(lambda x: x.str.lower())
+    # upper case all the values in the dataframe
+    df = df.apply(lambda x: x.str.upper())
     
     #first 8 columns are monday and next 8 columns are tuesday and so on only friday have 6 columns
     # add the column names as days
@@ -271,17 +319,21 @@ if uploaded_file:
     ]
 
     #st.write(df)
+
+    combined_teachers_schedule = combined_schedule()
+    st.write(combined_teachers_schedule)
     
-    unique_teachers = get_unique_teachers(df.iloc[1:, 1:])
+    unique_teachers = get_unique_teachers(df.iloc[:, 1:])
     # Dropdown to select the teacher and search bar to enter the teacher's name
     teacher_name = st.selectbox('Select teacher', unique_teachers)
     
     # display the teacher's schedule which class they are teaching and on which day
     st.write(f"Schedule for {teacher_name}")
 
-    
-    schedule_df, _ = get_teacher_schedule(teacher_name)
+    schedule_df = merged_schedule(teacher_name)
     st.dataframe(schedule_df)
+    #schedule_df, _ = get_teacher_schedule(teacher_name)
+    #st.dataframe(schedule_df)
 
     if st.button('Generate PDF for techer') and teacher_name:
         filename = f'{teacher_name.replace(" ", "_")}_schedule.pdf'
